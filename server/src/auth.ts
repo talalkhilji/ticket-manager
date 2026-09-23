@@ -12,6 +12,15 @@ export const auth = betterAuth({
     enabled: true,
     disableSignUp: true,
   },
+  user: {
+    additionalFields: {
+      role: {
+        type: ['admin', 'agent'],
+        required: false,
+        input: false,
+      },
+    },
+  },
   plugins: [
     admin({
       defaultRole: 'agent',
