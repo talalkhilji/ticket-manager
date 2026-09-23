@@ -20,15 +20,20 @@ Each phase ends with something that works and can be checked. Tasks are small en
 - [ ] Prisma schema: `User` (role: admin or agent)
 - [ ] Prisma schema: `Ticket` (status: open, resolved, closed; category: general, technical, refund, other; assignee: optional agent)
 - [ ] Prisma schema: `Message` (belongs to a ticket; inbound or outbound)
+- [ ] Prisma schema: `Session` (random session ID, belongs to a user, expiry date)
 - [ ] Run the first migration
 - [ ] Seed script that creates the initial admin
 - [ ] Password hashing (argon2)
-- [ ] Login and logout endpoints with sessions
-- [ ] Auth middleware and role check middleware (admin only)
+- [ ] Login endpoint: verify password, create a `Session` row, set the session ID in an httpOnly cookie
+- [ ] Logout endpoint: delete the `Session` row and clear the cookie
+- [ ] Session lookup middleware: load the session and user from the database on each request, reject expired sessions
+- [ ] Role check middleware (admin only)
+- [ ] Cleanup of expired sessions (scheduled job or on login)
+- [ ] Delete a user's sessions when their account is removed or their password changes
 - [ ] Login page in the client
 - [ ] Protected routes and a logged-in user context in the client
 
-**Done when:** the seeded admin can log in and out, and protected pages redirect to login.
+**Done when:** the seeded admin can log in and out (the session row is created and deleted in the database), and protected pages redirect to login.
 
 ## Phase 3: User Management (admin only)
 
