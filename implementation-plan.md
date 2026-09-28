@@ -6,7 +6,7 @@ Each phase ends with something that works and can be checked. Tasks are small en
 
 - [ ] Create monorepo layout with `client/` (React + Vite) and `server/` (Express) folders
 - [ ] Set up TypeScript, ESLint and Prettier in both
-- [ ] Add Tailwind and React Router to the client
+- [x] Add Tailwind and React Router to the client
 - [ ] Add Express server with a `/api/health` endpoint
 - [ ] Add PostgreSQL through Docker Compose
 - [ ] Add Prisma and connect it to the database
@@ -30,8 +30,8 @@ Each phase ends with something that works and can be checked. Tasks are small en
 - [ ] Role check middleware (admin only)
 - [ ] Cleanup of expired sessions (scheduled job or on login)
 - [ ] Delete a user's sessions when their account is removed or their password changes
-- [ ] Login page in the client
-- [ ] Protected routes and a logged-in user context in the client
+- [x] Login page in the client
+- [x] Protected routes and a logged-in user context in the client
 
 **Done when:** the seeded admin can log in and out (the session row is created and deleted in the database), and protected pages redirect to login.
 
