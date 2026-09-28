@@ -1,6 +1,7 @@
 {
   "name": "ticket-manager",
   "private": true,
+  "type": "module",
   "workspaces": [
     "client",
     "server"
@@ -8,9 +9,13 @@
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w server && npm run build -w client",
-    "typecheck": "npm run typecheck -w server"
+    "typecheck": "npm run typecheck -w server",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "e2e:db:reset": "tsx e2e/scripts/reset-db.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.2.4"
   }
 }

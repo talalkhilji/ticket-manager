@@ -15,7 +15,7 @@ npm workspaces monorepo:
 - `client/` - React 19 + Vite + TypeScript (linted with oxlint), Tailwind v4, shadcn/ui, React Router, react-hook-form + Zod
 - `server/` - Express 5 + TypeScript (run with tsx, built with tsc), PostgreSQL via Prisma, better-auth
 
-Planned (see tech-stack.md): pg-boss, SendGrid, Anthropic SDK, Vitest, Playwright.
+Playwright is set up at the repo root (`playwright.config.ts`, tests go in `e2e/tests/`). Planned (see tech-stack.md): pg-boss, SendGrid, Anthropic SDK, Vitest.
 
 ## Commands
 
@@ -26,6 +26,12 @@ Run from the repo root:
 - `npm run typecheck` - typecheck the server
 - `npm run lint -w client` - lint the client
 - `npm run seed -w server` - create the initial admin (needs `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `server/.env`)
+- `npm run test:e2e` - run Playwright (`test:e2e:ui` for UI mode). It starts its own API (port 3001) and client (port 5174), so it can run next to `npm run dev`.
+- `npm run e2e:db:reset` - drop, recreate, migrate and seed the test database (also runs automatically before each Playwright run)
+
+### E2E database
+
+Playwright never uses the dev database. It uses `helpdesk_test` on the same local Postgres, configured in `server/.env.e2e` (gitignored; copy `server/.env.e2e.example` and put in your Postgres password). `e2e/scripts/reset-db.ts` refuses to run unless the database name ends in `_test`. Rate limiting is off when `NODE_ENV=test`. Run `npx playwright install chromium` once on a new machine.
 
 ## Conventions
 

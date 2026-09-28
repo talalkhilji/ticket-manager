@@ -3,3 +3,7 @@ dist
 .env
 *.log
 .claude/settings.local.json
+.env.e2e
+playwright-report/
+test-results/
+e2e/.auth/

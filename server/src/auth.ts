@@ -33,7 +33,8 @@ export const auth = betterAuth({
     useSecureCookies: isProduction,
   },
   rateLimit: {
-    enabled: true,
+    // Off under test: e2e runs sign in far more than 5 times a minute.
+    enabled: env.NODE_ENV !== 'test',
     storage: 'database',
     customRules: {
       '/sign-in/email': { window: 60, max: 5 },
