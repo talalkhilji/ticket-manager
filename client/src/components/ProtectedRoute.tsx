@@ -2,7 +2,12 @@ import type { ReactNode } from 'react'
 import { Navigate } from 'react-router'
 import { authClient } from '../lib/auth-client'
 
-export function ProtectedRoute({ children }: { children: ReactNode }) {
+type ProtectedRouteProps = {
+  children: ReactNode
+  adminOnly?: boolean
+}
+
+export function ProtectedRoute({ children, adminOnly = false }: ProtectedRouteProps) {
   const { data, isPending } = authClient.useSession()
 
   if (isPending) {
@@ -11,6 +16,10 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!data?.user) {
     return <Navigate to="/login" replace />
+  }
+
+  if (adminOnly && data.user.role !== 'admin') {
+    return <Navigate to="/" replace />
   }
 
   return children
