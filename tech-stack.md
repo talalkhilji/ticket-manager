@@ -3,7 +3,7 @@
 | Layer | Choice |
 |---|---|
 | Language | TypeScript |
-| Frontend | React + Vite, Tailwind, React Router |
+| Frontend | React + Vite, Tailwind, shadcn/ui, React Router |
 | Backend | Node.js + Express |
 | Database | PostgreSQL |
 | ORM | Prisma |

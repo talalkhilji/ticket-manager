@@ -6,7 +6,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { data, isPending } = authClient.useSession()
 
   if (isPending) {
-    return <p className="p-6 text-center">Loading...</p>
+    return <p className="p-6 text-center text-muted-foreground">Loading...</p>
   }
 
   if (!data?.user) {

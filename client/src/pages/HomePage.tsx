@@ -27,11 +27,13 @@ export function HomePage() {
   return (
     <>
       <NavBar />
-      <main className="p-6">
-        <h1>Welcome, {data?.user?.name}</h1>
-        {health.state === 'loading' && <p>Checking server...</p>}
+      <main className="mx-auto max-w-4xl p-6">
+        <h1 className="mb-4 text-2xl font-semibold">Welcome, {data?.user?.name}</h1>
+        {health.state === 'loading' && <p className="text-muted-foreground">Checking server...</p>}
         {health.state === 'ok' && <p>Server is running and healthy.</p>}
-        {health.state === 'error' && <p>Could not reach the server: {health.message}</p>}
+        {health.state === 'error' && (
+          <p className="text-destructive">Could not reach the server: {health.message}</p>
+        )}
       </main>
     </>
   )
