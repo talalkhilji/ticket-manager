@@ -13,9 +13,9 @@ Read these before making product decisions:
 npm workspaces monorepo:
 
 - `client/` - React 19 + Vite + TypeScript (linted with oxlint), Tailwind v4, shadcn/ui, React Router, react-hook-form + Zod
-- `server/` - Express 5 + TypeScript (run with tsx, built with tsc)
+- `server/` - Express 5 + TypeScript (run with tsx, built with tsc), PostgreSQL via Prisma, better-auth
 
-Planned (see tech-stack.md): PostgreSQL, Prisma, pg-boss, SendGrid, Anthropic SDK, Vitest, Playwright.
+Planned (see tech-stack.md): pg-boss, SendGrid, Anthropic SDK, Vitest, Playwright.
 
 ## Commands
 
@@ -25,6 +25,7 @@ Run from the repo root:
 - `npm run build` - build server, then client
 - `npm run typecheck` - typecheck the server
 - `npm run lint -w client` - lint the client
+- `npm run seed -w server` - create the initial admin (needs `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `server/.env`)
 
 ## Conventions
 
@@ -35,6 +36,15 @@ Run from the repo root:
 - AI-drafted replies must not invent policies, prices or refund promises (there is no knowledge base yet).
 - Roles: `admin` (one pre-created, manages users) and `agent`. Agents cannot take or reassign a ticket another agent holds.
 - Never commit secrets. Use `.env` (with a committed `.env.example`).
+
+### Auth and roles
+
+- Auth is better-auth (`server/src/auth.ts`) with the `admin` plugin: email and password, sign-up disabled, default role `agent`. This replaces the hand-rolled session plan in `tech-stack.md`.
+- Accounts are created server-side with `auth.api.createUser` (see `server/prisma/seed.ts`), never through public sign-up.
+- The client reads the role from `authClient.useSession()` (`data.user.role`); `authClient` includes `adminClient()`.
+- Admin-only pages use `<ProtectedRoute adminOnly>`; the nav shows the Users link to admins only. This is a UI convenience only. Every admin endpoint must also check the role on the server.
+- Routes so far: `/login`, `/` (home), `/users` (admin only, heading placeholder).
+- A dev agent account `agent@example.com` exists in the local database (password is not recorded here).
 
 ### Client UI
 

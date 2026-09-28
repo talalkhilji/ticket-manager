@@ -1,6 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
 import swaggerUi from 'swagger-ui-express'
 import { toNodeHandler } from 'better-auth/node'
+import helmet from 'helmet'
 import { auth } from './auth.js'
 import { env } from './env.js'
 import { openapiSpec } from './swagger.js'
@@ -8,11 +9,16 @@ import { openapiSpec } from './swagger.js'
 const app = express()
 const port = env.PORT
 
+app.disable('x-powered-by')
+app.use(helmet())
+
 app.all('/api/auth/*splat', toNodeHandler(auth))
 
 app.use(express.json())
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec))
+if (env.NODE_ENV !== 'production') {
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec))
+}
 
 /**
  * @openapi
