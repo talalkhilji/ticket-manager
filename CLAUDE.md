@@ -25,6 +25,8 @@ Run from the repo root:
 - `npm run build` - build server, then client
 - `npm run typecheck` - typecheck the server
 - `npm run lint -w client` - lint the client
+- `npm test -w client` - run client component tests (Vitest + React Testing Library)
+- `npm run test:watch -w client` - rerun component tests on every change while writing them
 - `npm run seed -w server` - create the initial admin (needs `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `server/.env`)
 
 ## Testing
@@ -35,6 +37,20 @@ Write and fix all Playwright end-to-end tests with the `e2e-test-writer` agent (
 - Give it the feature, the routes or endpoints involved, which roles can do what, and the rules from this file that apply (for example closed tickets are final, agents cannot take another agent's ticket). Tell it what is built so it does not test planned features.
 - It only writes tests. It does not change app code and does not commit. When it reports app issues (a real bug, a missing accessible name, a permission gap), fix them in the app, then have it rerun the tests.
 - Ask for a run of the whole suite before calling a feature done, and tick the matching item in `implementation-plan.md` only after it passes.
+
+### Component tests (client)
+
+Component tests use Vitest, jsdom and React Testing Library. They are separate from the Playwright e2e tests above, which still go through the `e2e-test-writer` agent.
+
+- Write them when you build or change a client component or page. Put the file next to the component as `Name.test.tsx`.
+- Run them with `npm test -w client` (all, once). Use `npm run test:watch -w client` while writing. Run the whole set before calling client work done, and fix failures rather than skipping or deleting tests.
+- Query the way a user sees the page: `getByRole`, `getByLabelText`, `getByText`. Avoid test ids and class names. If something has no accessible name, fix the component.
+- Use `userEvent` (not `fireEvent`) for interaction, and `findBy*` or `waitFor` for async results.
+- Mock the network by mocking `@/lib/api` (`vi.mock`), not `fetch` or axios internals. Mock `../components/NavBar` (or `authClient`) when the test is not about the nav or session.
+- Render with a fresh `QueryClient` per test with `retry: false`, wrapped in `QueryClientProvider` (and `MemoryRouter` if the component uses routing).
+- Cover loading, success, empty, error and the main interactions. Keep tests independent: reset mocks in `beforeEach`.
+- Setup lives in `client/src/test/setup.ts` (jest-dom matchers and cleanup). Config is the `test` block in `client/vite.config.ts`.
+- Context7 applies to Vitest and Testing Library APIs like any other library.
 
 ## Conventions
 
