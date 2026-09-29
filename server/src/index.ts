@@ -4,6 +4,7 @@ import { toNodeHandler } from 'better-auth/node'
 import helmet from 'helmet'
 import { auth } from './auth.js'
 import { env } from './env.js'
+import { usersRouter } from './routes/users.js'
 import { openapiSpec } from './swagger.js'
 
 const app = express()
@@ -40,6 +41,8 @@ if (env.NODE_ENV !== 'production') {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
+
+app.use('/api/users', usersRouter)
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack)
