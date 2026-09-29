@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import { UsersPage } from './UsersPage'
 
-vi.mock('@/lib/api', () => ({ api: { get: vi.fn() } }))
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), patch: vi.fn() } }))
 // The nav bar needs the router and the auth session; it is not what these tests cover.
 vi.mock('../components/NavBar', () => ({ NavBar: () => null }))
 
@@ -189,6 +189,68 @@ describe('UsersPage', () => {
       await user.click(screen.getByRole('heading', { name: 'Create user' }))
 
       expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+  })
+
+  describe('edit user dialog', () => {
+    it('shows an edit button with an accessible name on every row', async () => {
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Alice Admin')
+
+      expect(screen.getByRole('button', { name: 'Edit Alice Admin' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit Bob Agent' })).toBeInTheDocument()
+    })
+
+    it("opens populated with the row's user, with an empty password", async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Edit Bob Agent' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Edit user' })
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Bob Agent')
+      expect(within(dialog).getByLabelText('Email')).toHaveValue('bob@example.com')
+      expect(within(dialog).getByLabelText('Password')).toHaveValue('')
+    })
+
+    it('closes on Escape and shows the next row when another edit button is clicked', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Edit Bob Agent' }))
+      await screen.findByRole('dialog', { name: 'Edit user' })
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      await user.click(screen.getByRole('button', { name: 'Edit Alice Admin' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Edit user' })
+      expect(within(dialog).getByLabelText('Email')).toHaveValue('alice@example.com')
+    })
+
+    it('saves the change, closes the dialog and reloads the list', async () => {
+      const user = userEvent.setup()
+      vi.mocked(api.patch).mockResolvedValue({ data: {} })
+      get.mockResolvedValue(respond([agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Edit Bob Agent' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Edit user' })
+      await user.type(within(dialog).getByLabelText('Password'), 'brandnewpass')
+      await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(api.patch).toHaveBeenCalledWith('/users/2', {
+        name: 'Bob Agent',
+        email: 'bob@example.com',
+        password: 'brandnewpass',
+      })
+      await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(1))
     })
   })
 

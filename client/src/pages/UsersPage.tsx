@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { CreateUserDialog } from '../components/CreateUserDialog'
+import { PencilIcon } from 'lucide-react'
 import { NavBar } from '../components/NavBar'
+import { UserDialog } from '../components/UserDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +35,8 @@ export function UsersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editing, setEditing] = useState<UserRow | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -63,7 +66,9 @@ export function UsersPage() {
           <h1 className="text-2xl font-semibold">Users</h1>
           <Button onClick={() => setCreateOpen(true)}>Create user</Button>
         </div>
-        <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
+        <UserDialog open={createOpen} onOpenChange={setCreateOpen} />
+        {/* Keep the user after closing so the title doesn't flip during the close animation. */}
+        <UserDialog open={editOpen} onOpenChange={setEditOpen} user={editing ?? undefined} />
         <Input
           type="search"
           aria-label="Search users"
@@ -88,13 +93,16 @@ export function UsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody aria-busy={isPending}>
                 {isPending &&
                   Array.from({ length: 5 }, (_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 5 }, (_, j) => (
+                      {Array.from({ length: 6 }, (_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
@@ -103,7 +111,7 @@ export function UsersPage() {
                   ))}
                 {data?.users.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       No users found.
                     </TableCell>
                   </TableRow>
@@ -125,6 +133,19 @@ export function UsersPage() {
                       )}
                     </TableCell>
                     <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${user.name}`}
+                        onClick={() => {
+                          setEditing(user)
+                          setEditOpen(true)
+                        }}
+                      >
+                        <PencilIcon />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -70,8 +70,11 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 - Accounts are created server-side with `auth.api.createUser` (see `server/prisma/seed.ts`), never through public sign-up.
 - The client reads the role from `authClient.useSession()` (`data.user.role`); `authClient` includes `adminClient()`.
 - Admin-only pages use `<ProtectedRoute adminOnly>`; the nav shows the Users link to admins only. This is a UI convenience only. Every admin endpoint must also check the role on the server.
-- Routes so far: `/login`, `/` (home), `/users` (admin only: user list with search and paging, plus a "Create user" modal).
-- Creating a user: `POST /api/users` (admin only) validates the body with `createUserSchema` from `core` (name min 3, email, password min 8) and calls `auth.api.createUser`; the role is always `agent`. The client form is `client/src/components/CreateUserDialog.tsx`, built with react-hook-form + the same `createUserSchema` (`zodResolver`), the same pattern as `LoginPage.tsx`. Use react-hook-form + Zod for every client form.
+- Routes so far: `/login`, `/` (home), `/users` (admin only: user list with search and paging, plus "Create user" and per-row edit (pencil icon) modals).
+- Creating a user: `POST /api/users` (admin only) validates the body with `createUserSchema` from `core` (name min 3, email, password min 8) and calls `auth.api.createUser`; the role is always `agent`.
+- Editing a user: `PATCH /api/users/:id` (admin only) validates with `updateUserSchema` from `core` (same rules, but the password is optional). It updates name and email with `auth.api.adminUpdateUser` and only calls `auth.api.setUserPassword` when a non-empty password is sent; a blank password leaves the current one unchanged. Role and ban state cannot be changed here. Both calls need the admin's session, so pass `fromNodeHeaders(req.headers)`.
+- Password minimum is 8 everywhere (`minPasswordLength` in `server/src/auth.ts`, the `core` schemas). Keep them in sync.
+- The client form is `client/src/components/UserForm.tsx` (create when no `user` prop, edit when given one), shown in `UserDialog.tsx`. It uses react-hook-form + the `core` schemas (`zodResolver`), the same pattern as `LoginPage.tsx`. Use react-hook-form + Zod for every client form.
 - A dev agent account `agent@example.com` exists in the local database (password is not recorded here).
 
 ### Client data fetching

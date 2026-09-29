@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { createUserSchema } from 'core'
+import { fromNodeHeaders } from 'better-auth/node'
+import { createUserSchema, updateUserSchema } from 'core'
 import { z } from 'zod'
 import { auth } from '../auth.js'
 import { prisma } from '../db.js'
@@ -125,4 +126,79 @@ usersRouter.post('/', requireAdmin, async (req, res) => {
       createdAt: user.createdAt,
     },
   })
+})
+
+const userIdParam = z.object({ id: z.string().min(1) })
+
+/**
+ * @openapi
+ * /api/users/{id}:
+ *   patch:
+ *     summary: Update a user's name, email and optionally password (admin only)
+ *     description: An empty or missing password leaves the current password unchanged.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email]
+ *             properties:
+ *               name: { type: string, minLength: 3 }
+ *               email: { type: string, format: email }
+ *               password: { type: string, minLength: 8 }
+ *     responses:
+ *       200:
+ *         description: The updated user
+ *       400:
+ *         description: Invalid body
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Not an admin
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Email already in use
+ */
+usersRouter.patch('/:id', requireAdmin, async (req, res) => {
+  const params = userIdParam.safeParse(req.params)
+  const body = updateUserSchema.safeParse(req.body)
+  if (!params.success || !body.success) {
+    const issues = [...(params.error?.issues ?? []), ...(body.error?.issues ?? [])]
+    res.status(400).json({ error: 'Invalid request', issues })
+    return
+  }
+  const { id: userId } = params.data
+  const { name, password } = body.data
+  const email = body.data.email.toLowerCase()
+
+  const existing = await prisma.user.findUnique({ where: { id: userId } })
+  if (!existing) {
+    res.status(404).json({ error: 'User not found' })
+    return
+  }
+  const emailOwner = await prisma.user.findUnique({ where: { email } })
+  if (emailOwner && emailOwner.id !== userId) {
+    res.status(409).json({ error: 'A user with this email already exists' })
+    return
+  }
+
+  // Both admin endpoints check the caller's session, so pass the request headers through.
+  const headers = fromNodeHeaders(req.headers)
+  await auth.api.adminUpdateUser({ body: { userId, data: { name, email } }, headers })
+  if (password) {
+    await auth.api.setUserPassword({ body: { userId, newPassword: password }, headers })
+  }
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { id: true, name: true, email: true, role: true, banned: true, createdAt: true },
+  })
+  res.json({ user })
 })
