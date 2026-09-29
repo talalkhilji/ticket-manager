@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { NavBar } from '../components/NavBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -23,17 +26,12 @@ type UserRow = {
 
 type UsersResponse = { users: UserRow[]; total: number; page: number; pageSize: number }
 
-type Result =
-  | { key: string; error: string; data?: undefined }
-  | { key: string; data: UsersResponse; error?: undefined }
-
 const PAGE_SIZE = 20
 
 export function UsersPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [result, setResult] = useState<Result | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -45,25 +43,14 @@ export function UsersPage() {
 
   const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) })
   if (debouncedSearch) params.set('search', debouncedSearch)
-  const query = params.toString()
 
-  useEffect(() => {
-    const controller = new AbortController()
-    fetch(`/api/users?${query}`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Server responded with ${res.status}`)
-        return res.json() as Promise<UsersResponse>
-      })
-      .then((data) => setResult({ key: query, data }))
-      .catch((err: Error) => {
-        if (err.name !== 'AbortError') setResult({ key: query, error: err.message })
-      })
-    return () => controller.abort()
-  }, [query])
+  const { data, error, isPending } = useQuery({
+    queryKey: ['users', page, debouncedSearch],
+    queryFn: ({ signal }) =>
+      api.get<UsersResponse>(`/users?${params}`, { signal }).then((res) => res.data),
+    placeholderData: (previous) => previous,
+  })
 
-  // A result for an older query means the current one is still loading.
-  const current = result?.key === query ? result : null
-  const data = current?.data ?? null
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
@@ -80,14 +67,12 @@ export function UsersPage() {
           className="mb-4 max-w-sm"
         />
 
-        {current?.error !== undefined && (
+        {error && (
           <p role="alert" className="text-destructive">
-            Could not load users: {current.error}
+            Could not load users: {error.message}
           </p>
         )}
-        {!current && <p className="text-muted-foreground">Loading users...</p>}
-
-        {data && (
+        {(data || isPending) && (
           <>
             <Table>
               <TableHeader>
@@ -99,15 +84,25 @@ export function UsersPage() {
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {data.users.length === 0 && (
+              <TableBody aria-busy={isPending}>
+                {isPending &&
+                  Array.from({ length: 5 }, (_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 5 }, (_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                {data?.users.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
                       No users found.
                     </TableCell>
                   </TableRow>
                 )}
-                {data.users.map((user) => (
+                {data?.users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -129,30 +124,32 @@ export function UsersPage() {
               </TableBody>
             </Table>
 
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {data.total} {data.total === 1 ? 'user' : 'users'} · Page {data.page} of{' '}
-                {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
+            {data && (
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {data.total} {data.total === 1 ? 'user' : 'users'} · Page {data.page} of{' '}
+                  {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </main>
