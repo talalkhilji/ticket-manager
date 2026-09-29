@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { CreateUserDialog } from '../components/CreateUserDialog'
 import { NavBar } from '../components/NavBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ export function UsersPage() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -57,7 +59,11 @@ export function UsersPage() {
     <>
       <NavBar />
       <main className="mx-auto max-w-4xl p-6">
-        <h1 className="mb-4 text-2xl font-semibold">Users</h1>
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Users</h1>
+          <Button onClick={() => setCreateOpen(true)}>Create user</Button>
+        </div>
+        <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
         <Input
           type="search"
           aria-label="Search users"

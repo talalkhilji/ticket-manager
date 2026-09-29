@@ -3,13 +3,15 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "core",
     "client",
     "server"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w server && npm run build -w client",
-    "typecheck": "npm run typecheck -w server",
+    "postinstall": "npm run build -w core",
+    "dev": "npm run build -w core && concurrently -n core,server,client -c yellow,blue,green \"npm run dev -w core\" \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w core && npm run build -w server && npm run build -w client",
+    "typecheck": "npm run build -w core && npm run typecheck -w server",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "e2e:db:reset": "tsx e2e/scripts/reset-db.ts"

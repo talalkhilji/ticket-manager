@@ -140,6 +140,58 @@ describe('UsersPage', () => {
     expect(params.get('page')).toBe('1')
   })
 
+  describe('create user dialog', () => {
+    async function openDialog() {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([admin]))
+      renderPage()
+      await screen.findByText('Alice Admin')
+      await user.click(screen.getByRole('button', { name: 'Create user' }))
+      await screen.findByRole('dialog', { name: 'Create user' })
+      return user
+    }
+
+    it('is hidden until the Create user button is clicked, then shown', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([admin]))
+      renderPage()
+      await screen.findByText('Alice Admin')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Create user' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Create user' })
+      expect(within(dialog).getByLabelText('Name')).toBeInTheDocument()
+      expect(within(dialog).getByLabelText('Email')).toBeInTheDocument()
+      expect(within(dialog).getByLabelText('Password')).toBeInTheDocument()
+    })
+
+    it('is hidden when Escape is pressed', async () => {
+      const user = await openDialog()
+
+      await user.keyboard('{Escape}')
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('is hidden when clicking outside of it', async () => {
+      const user = await openDialog()
+
+      // The backdrop is the only thing outside the dialog that receives the click.
+      await user.pointer({ keys: '[MouseLeft]', target: document.body })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('stays open when clicking inside of it', async () => {
+      const user = await openDialog()
+
+      await user.click(screen.getByRole('heading', { name: 'Create user' }))
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+  })
+
   it('pages forward and back, disabling the buttons at the ends', async () => {
     const user = userEvent.setup()
     get.mockImplementation((url) => {

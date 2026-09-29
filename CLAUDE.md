@@ -12,6 +12,7 @@ Read these before making product decisions:
 
 npm workspaces monorepo:
 
+- `core/` - shared package (`core`): Zod schemas and inferred types used by both client and server. Compiled with tsc to `core/dist`.
 - `client/` - React 19 + Vite + TypeScript (linted with oxlint), Tailwind v4, shadcn/ui, React Router, react-hook-form + Zod
 - `server/` - Express 5 + TypeScript (run with tsx, built with tsc), PostgreSQL via Prisma, better-auth
 
@@ -56,6 +57,7 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 
 - TypeScript everywhere, ESM (`"type": "module"`).
 - Validate all external input (requests, env vars, webhooks) with Zod.
+- Define every Zod schema that describes data shared between client and server (request bodies, form inputs, DTOs) once in `core/src` and export it (and its `z.infer` type) from `core/src/index.ts`. Import it from `'core'` in both the server (request validation) and the client (react-hook-form `zodResolver`). Never duplicate a shared schema in `client/` or `server/`. Put user-facing error messages in the schema. Schemas only used on one side (server env vars, server query parsing) stay local. `core` is compiled, so rebuild it after editing (`npm run build -w core`; `npm run dev` watches it, and `npm install` builds it).
 - Ticket status: `open`, `resolved`, `closed`. Category: general, technical, refund, other. Exactly one of each per ticket.
 - Closed tickets are final: a student reply must not reopen them or create a new ticket.
 - AI-drafted replies must not invent policies, prices or refund promises (there is no knowledge base yet).
@@ -68,7 +70,8 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 - Accounts are created server-side with `auth.api.createUser` (see `server/prisma/seed.ts`), never through public sign-up.
 - The client reads the role from `authClient.useSession()` (`data.user.role`); `authClient` includes `adminClient()`.
 - Admin-only pages use `<ProtectedRoute adminOnly>`; the nav shows the Users link to admins only. This is a UI convenience only. Every admin endpoint must also check the role on the server.
-- Routes so far: `/login`, `/` (home), `/users` (admin only, heading placeholder).
+- Routes so far: `/login`, `/` (home), `/users` (admin only: user list with search and paging, plus a "Create user" modal).
+- Creating a user: `POST /api/users` (admin only) validates the body with `createUserSchema` from `core` (name min 3, email, password min 8) and calls `auth.api.createUser`; the role is always `agent`. The client form is `client/src/components/CreateUserDialog.tsx`, built with react-hook-form + the same `createUserSchema` (`zodResolver`), the same pattern as `LoginPage.tsx`. Use react-hook-form + Zod for every client form.
 - A dev agent account `agent@example.com` exists in the local database (password is not recorded here).
 
 ### Client data fetching
