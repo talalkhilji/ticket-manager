@@ -1,11 +1,20 @@
 import type { InboundEmail } from 'core'
 import { prisma } from '../db.js'
+import { sanitizeText } from '../sanitize.js'
 
 /**
  * Creates a ticket (status open, category general) with the email as its first inbound message.
  * A repeated `messageId` returns the existing ticket instead of creating a second one.
  */
-export async function createTicketFromEmail(email: InboundEmail) {
+export async function createTicketFromEmail(rawEmail: InboundEmail) {
+  // HTML in the subject, sender name or body is stripped to plain text before anything is stored.
+  const email = {
+    ...rawEmail,
+    subject: sanitizeText(rawEmail.subject) || '(no subject)',
+    fromName: sanitizeText(rawEmail.fromName) || rawEmail.from,
+    body: sanitizeText(rawEmail.body) || '(no content)',
+  }
+
   if (email.messageId) {
     const existing = await prisma.message.findUnique({
       where: { messageId: email.messageId },
@@ -23,6 +32,7 @@ export async function createTicketFromEmail(email: InboundEmail) {
         messages: {
           create: {
             direction: 'inbound',
+            senderType: 'customer',
             fromEmail: email.from,
             body: email.body,
             messageId: email.messageId,

@@ -103,6 +103,11 @@ enum MessageDirection {
   outbound
 }
 
+enum MessageSenderType {
+  agent
+  customer
+}
+
 model Ticket {
   id          Int             @id @default(autoincrement())
   subject     String
@@ -127,6 +132,8 @@ model Message {
   ticketId   Int
   ticket     Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   direction  MessageDirection
+  // Who wrote it: a customer (inbound email) or an agent (reply from the ticket page).
+  senderType MessageSenderType
   fromEmail  String
   body       String
   // Email Message-ID header: dedupes retries and will be used to thread replies.

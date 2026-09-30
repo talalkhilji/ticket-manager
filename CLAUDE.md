@@ -79,6 +79,13 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 - The client form is `client/src/components/UserForm.tsx` (create when no `user` prop, edit when given one), shown in `UserDialog.tsx`. It uses react-hook-form + the `core` schemas (`zodResolver`), the same pattern as `LoginPage.tsx`. Use react-hook-form + Zod for every client form.
 - A dev agent account `agent@example.com` exists in the local database (password is not recorded here).
 
+### Replying to tickets
+
+- `POST /api/tickets/:id/messages` (`requireAuth`) validates `createReplySchema` from `core` and stores an outbound `Message` from the caller's email. It is stored only: nothing is emailed yet (SendGrid is Phase 5).
+- Closed tickets return 409. An agent may reply on an unassigned ticket (which assigns it to them) or their own; another agent's ticket returns 403. Admins can reply on any non-closed ticket. Replying does not change status.
+- Every `Message` has a `senderType` (`agent` or `customer`, `messageSenderTypes` in `core`) next to `direction`: the reply route sets `agent`, `createTicketFromEmail` sets `customer`. The thread shows it as a badge. A `system` value is planned for the closed-ticket template reply.
+- The client form is `client/src/components/ReplyForm.tsx`, shown under the thread on `TicketDetailPage.tsx` (replaced by a notice when the ticket is closed).
+
 ### Inbound email (simulated)
 
 - There is no SendGrid integration yet. `POST /api/inbound/email` (`server/src/routes/inbound.ts`) simulates an email arriving at the support address. It is only mounted when `INBOUND_SECRET` (min 32 chars) is set, and every call needs the `x-inbound-secret` header (401 otherwise).

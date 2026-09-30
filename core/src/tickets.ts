@@ -37,10 +37,44 @@ export type TicketSortField = (typeof ticketSortFields)[number]
 export const ticketStatuses = ['open', 'resolved', 'closed'] as const
 export const ticketCategories = ['general', 'technical', 'refund', 'other'] as const
 
-export type TicketStatus = (typeof ticketStatuses)[number]
+// Who wrote a message on a ticket.
+export const messageSenderTypes = ['agent', 'customer'] as const
+export type MessageSenderType = (typeof messageSenderTypes)[number]
+
+export type TicketStatus =(typeof ticketStatuses)[number]
 export type TicketCategory = (typeof ticketCategories)[number]
 
 // Special values of the list filters: tickets with no category, tickets with no assignee, my tickets.
 export const NO_CATEGORY = 'none'
 export const UNASSIGNED = 'unassigned'
 export const ASSIGNED_TO_ME = 'me'
+
+// Who holds a ticket: a user id, or null to unassign.
+export const assignTicketSchema = z.object({
+  assigneeId: z.string('Choose an assignee or unassigned').trim().min(1).nullable(),
+})
+
+export type AssignTicketInput = z.infer<typeof assignTicketSchema>
+
+// Status and/or category change from an agent or admin. Send only the fields that change.
+export const updateTicketSchema = z
+  .object({
+    status: z.enum(ticketStatuses, 'Choose a valid status').optional(),
+    category: z.enum(ticketCategories, 'Choose a valid category').optional(),
+  })
+  .refine((v) => v.status !== undefined || v.category !== undefined, {
+    message: 'Provide a status or a category',
+  })
+
+export type UpdateTicketInput = z.infer<typeof updateTicketSchema>
+
+// An agent's reply to a ticket.
+export const createReplySchema = z.object({
+  body: z
+    .string('Reply cannot be empty')
+    .trim()
+    .min(1, 'Reply cannot be empty')
+    .max(20000, 'Reply must be at most 20000 characters'),
+})
+
+export type CreateReplyInput = z.infer<typeof createReplySchema>

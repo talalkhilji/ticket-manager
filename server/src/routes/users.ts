@@ -75,6 +75,28 @@ usersRouter.get('/', requireAdmin, async (req, res) => {
 
 /**
  * @openapi
+ * /api/users/agents:
+ *   get:
+ *     summary: List every active agent, for choosing a ticket assignee (admin only)
+ *     responses:
+ *       200:
+ *         description: Agents sorted by name
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Not an admin
+ */
+usersRouter.get('/agents', requireAdmin, async (_req, res) => {
+  const agents = await prisma.user.findMany({
+    where: { role: 'agent', deletedAt: null, banned: { not: true } },
+    select: { id: true, name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  })
+  res.json({ agents })
+})
+
+/**
+ * @openapi
  * /api/users:
  *   post:
  *     summary: Create an agent account (admin only)

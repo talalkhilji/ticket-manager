@@ -77,6 +77,17 @@ describe('TicketsPage', () => {
     expect(rows[1]).toHaveTextContent('Cannot log in')
   })
 
+  it('links each subject to the ticket detail page', async () => {
+    get.mockResolvedValue(respond([refund, technical]))
+    renderPage()
+
+    expect(await screen.findByRole('link', { name: 'Refund for my course' })).toHaveAttribute(
+      'href',
+      '/tickets/2',
+    )
+    expect(screen.getByRole('link', { name: 'Cannot log in' })).toHaveAttribute('href', '/tickets/1')
+  })
+
   it('shows sender, status, category and assignee for each ticket', async () => {
     get.mockResolvedValue(respond([refund, technical]))
     renderPage()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   createColumnHelper,
@@ -69,7 +69,14 @@ const columns = helper.columns([
   helper.accessor('subject', {
     id: 'subject' satisfies TicketSortField,
     header: 'Subject',
-    cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+    cell: (info) => (
+      <Link
+        to={`/tickets/${info.row.original.id}`}
+        className="font-medium underline-offset-4 hover:underline"
+      >
+        {info.getValue()}
+      </Link>
+    ),
   }),
   helper.accessor('senderName', {
     id: 'senderName' satisfies TicketSortField,

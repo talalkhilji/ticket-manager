@@ -177,6 +177,7 @@ for (let i = 0; i < 100; i++) {
   const messages = [
     {
       direction: 'inbound' as const,
+      senderType: 'customer' as const,
       fromEmail: email,
       body: fill(bodyTemplate, values),
       messageId: `<seed-${i + 1}-in@seed.example>`,
@@ -186,6 +187,7 @@ for (let i = 0; i < 100; i++) {
   if (status !== 'open') {
     messages.push({
       direction: 'outbound' as const,
+      senderType: 'agent' as const,
       fromEmail: 'support@example.com',
       body: fill(pick(agentReplies), values),
       messageId: `<seed-${i + 1}-out@seed.example>`,
