@@ -48,14 +48,16 @@ usersRouter.get('/', requireAdmin, async (req, res) => {
   }
   const { page, pageSize, search } = parsed.data
 
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { email: { contains: search, mode: 'insensitive' as const } },
-        ],
-      }
-    : {}
+  // Soft-deleted users never show up.
+  const where = {
+    deletedAt: null,
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }),
+  }
 
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
@@ -179,7 +181,7 @@ usersRouter.patch('/:id', requireAdmin, async (req, res) => {
   const email = body.data.email.toLowerCase()
 
   const existing = await prisma.user.findUnique({ where: { id: userId } })
-  if (!existing) {
+  if (!existing || existing.deletedAt) {
     res.status(404).json({ error: 'User not found' })
     return
   }
@@ -201,4 +203,63 @@ usersRouter.patch('/:id', requireAdmin, async (req, res) => {
     select: { id: true, name: true, email: true, role: true, banned: true, createdAt: true },
   })
   res.json({ user })
+})
+
+/**
+ * @openapi
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Soft-delete a user (admin only)
+ *     description: >
+ *       Marks the user deleted, frees their email, bans them and ends their sessions.
+ *       The row is kept. Admin accounts cannot be deleted.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       204:
+ *         description: Deleted
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Not an admin, or the target is an admin
+ *       404:
+ *         description: User not found
+ */
+usersRouter.delete('/:id', requireAdmin, async (req, res) => {
+  const params = userIdParam.safeParse(req.params)
+  if (!params.success) {
+    res.status(400).json({ error: 'Invalid request', issues: params.error.issues })
+    return
+  }
+  const { id: userId } = params.data
+
+  const target = await prisma.user.findUnique({ where: { id: userId } })
+  if (!target || target.deletedAt) {
+    res.status(404).json({ error: 'User not found' })
+    return
+  }
+  if (target.role === 'admin') {
+    res.status(403).json({ error: 'Admin accounts cannot be deleted' })
+    return
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        deletedAt: new Date(),
+        deletedEmail: target.email,
+        // Frees the address for reuse while keeping the unique constraint satisfied.
+        email: `deleted+${userId}@deleted.invalid`,
+        banned: true,
+        banReason: 'Deleted',
+      },
+    }),
+    prisma.session.deleteMany({ where: { userId } }),
+  ])
+
+  res.status(204).end()
 })

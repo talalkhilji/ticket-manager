@@ -18,8 +18,8 @@ Each phase ends with something that works and can be checked. Tasks are small en
 ## Phase 2: Database and Authentication
 
 - [ ] Prisma schema: `User` (role: admin or agent)
-- [ ] Prisma schema: `Ticket` (status: open, resolved, closed; category: general, technical, refund, other; assignee: optional agent)
-- [ ] Prisma schema: `Message` (belongs to a ticket; inbound or outbound)
+- [x] Prisma schema: `Ticket` (status: open, resolved, closed; category: general, technical, refund, other; assignee: optional agent)
+- [x] Prisma schema: `Message` (belongs to a ticket; inbound or outbound)
 - [ ] Prisma schema: `Session` (random session ID, belongs to a user, expiry date)
 - [ ] Run the first migration
 - [ ] Seed script that creates the initial admin
@@ -57,7 +57,7 @@ Each phase ends with something that works and can be checked. Tasks are small en
 - [ ] Status change control on the detail page (close shown to admins only)
 - [ ] "Assign to me" button on the detail page and list
 - [ ] Pagination on the list
-- [ ] Seed script with sample tickets for development
+- [x] Seed script with sample tickets for development
 
 **Done when:** an agent can browse, filter, sort and open tickets, and change their status.
 

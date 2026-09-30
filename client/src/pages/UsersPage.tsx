@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { PencilIcon } from 'lucide-react'
+import { PencilIcon, Trash2Icon } from 'lucide-react'
+import { DeleteUserDialog } from '../components/DeleteUserDialog'
 import { NavBar } from '../components/NavBar'
 import { UserDialog } from '../components/UserDialog'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +38,8 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<UserRow | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [deleting, setDeleting] = useState<UserRow | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -58,6 +61,12 @@ export function UsersPage() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
+  // Deleting the last user on a page leaves it empty: step back to the previous page.
+  const pageIsEmpty = data?.users.length === 0 && data.page === page
+  useEffect(() => {
+    if (pageIsEmpty && page > 1) setPage((p) => p - 1)
+  }, [pageIsEmpty, page])
+
   return (
     <>
       <NavBar />
@@ -69,6 +78,9 @@ export function UsersPage() {
         <UserDialog open={createOpen} onOpenChange={setCreateOpen} />
         {/* Keep the user after closing so the title doesn't flip during the close animation. */}
         <UserDialog open={editOpen} onOpenChange={setEditOpen} user={editing ?? undefined} />
+        {deleting && (
+          <DeleteUserDialog open={deleteOpen} onOpenChange={setDeleteOpen} user={deleting} />
+        )}
         <Input
           type="search"
           aria-label="Search users"
@@ -145,6 +157,20 @@ export function UsersPage() {
                       >
                         <PencilIcon />
                       </Button>
+                      {/* Admin accounts cannot be deleted (the server enforces this too). */}
+                      {user.role !== 'admin' && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Delete ${user.name}`}
+                          onClick={() => {
+                            setDeleting(user)
+                            setDeleteOpen(true)
+                          }}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

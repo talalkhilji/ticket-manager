@@ -25,8 +25,12 @@ model User {
   banned        Boolean?  @default(false)
   banReason     String?
   banExpires    DateTime?
+  // Soft delete: the row is kept, `email` is replaced by a placeholder and the original moves here.
+  deletedAt     DateTime?
+  deletedEmail  String?
   sessions      Session[]
   accounts      Account[]
+  tickets       Ticket[]
 
   @@unique([email])
   @@map("user")
@@ -79,6 +83,59 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+enum TicketStatus {
+  open
+  resolved
+  closed
+}
+
+enum TicketCategory {
+  general
+  technical
+  refund
+  other
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+}
+
+model Ticket {
+  id          Int             @id @default(autoincrement())
+  subject     String
+  senderEmail String
+  senderName  String
+  status      TicketStatus    @default(open)
+  // Unset until classified (by an agent or the AI).
+  category    TicketCategory?
+  assigneeId  String?
+  assignee    User?          @relation(fields: [assigneeId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  messages    Message[]
+
+  @@index([status])
+  @@index([assigneeId])
+  @@map("ticket")
+}
+
+model Message {
+  id         Int              @id @default(autoincrement())
+  ticketId   Int
+  ticket     Ticket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  direction  MessageDirection
+  fromEmail  String
+  body       String
+  // Email Message-ID header: dedupes retries and will be used to thread replies.
+  messageId  String?          @unique
+  inReplyTo  String?
+  createdAt  DateTime         @default(now())
+
+  @@index([ticketId])
+  @@map("message")
 }
 
 model RateLimit {

@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { TicketsPage } from './pages/TicketsPage'
 import { UsersPage } from './pages/UsersPage'
 
 function App() {
@@ -13,6 +14,14 @@ function App() {
         element={
           <ProtectedRoute>
             <HomePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tickets"
+        element={
+          <ProtectedRoute>
+            <TicketsPage />
           </ProtectedRoute>
         }
       />

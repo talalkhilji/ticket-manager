@@ -50,7 +50,7 @@ export function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="off"
                 aria-invalid={!!errors.email}
                 {...register('email')}
               />
@@ -63,7 +63,7 @@ export function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 aria-invalid={!!errors.password}
                 {...register('password')}
               />

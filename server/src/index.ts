@@ -4,6 +4,8 @@ import { toNodeHandler } from 'better-auth/node'
 import helmet from 'helmet'
 import { auth } from './auth.js'
 import { env } from './env.js'
+import { inboundRouter } from './routes/inbound.js'
+import { ticketsRouter } from './routes/tickets.js'
 import { usersRouter } from './routes/users.js'
 import { openapiSpec } from './swagger.js'
 
@@ -43,6 +45,12 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.use('/api/users', usersRouter)
+app.use('/api/tickets', ticketsRouter)
+
+// Simulated inbound email. Off unless INBOUND_SECRET is configured.
+if (env.INBOUND_SECRET) {
+  app.use('/api/inbound', inboundRouter)
+}
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack)

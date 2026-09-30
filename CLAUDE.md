@@ -29,6 +29,7 @@ Run from the repo root:
 - `npm test -w client` - run client component tests (Vitest + React Testing Library)
 - `npm run test:watch -w client` - rerun component tests on every change while writing them
 - `npm run seed -w server` - create the initial admin (needs `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `server/.env`)
+- `npm run seed:tickets -w server` - (re)create 100 varied sample tickets for development; safe to re-run
 
 ## Testing
 
@@ -70,12 +71,20 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 - Accounts are created server-side with `auth.api.createUser` (see `server/prisma/seed.ts`), never through public sign-up.
 - The client reads the role from `authClient.useSession()` (`data.user.role`); `authClient` includes `adminClient()`.
 - Admin-only pages use `<ProtectedRoute adminOnly>`; the nav shows the Users link to admins only. This is a UI convenience only. Every admin endpoint must also check the role on the server.
-- Routes so far: `/login`, `/` (home), `/users` (admin only: user list with search and paging, plus "Create user" and per-row edit (pencil icon) modals).
+- Routes so far: `/login`, `/` (home), `/tickets` (any signed-in user: ticket list, paged, sorted on the server (default newest first) via `sortBy`/`sortOrder` query params from `ticketSortFields` in `core`; the client uses TanStack Table v9 with `manualSorting`; `GET /api/tickets` with `requireAuth`), `/users` (admin only: user list with search and paging, plus "Create user" and per-row edit (pencil icon) modals).
 - Creating a user: `POST /api/users` (admin only) validates the body with `createUserSchema` from `core` (name min 3, email, password min 8) and calls `auth.api.createUser`; the role is always `agent`.
 - Editing a user: `PATCH /api/users/:id` (admin only) validates with `updateUserSchema` from `core` (same rules, but the password is optional). It updates name and email with `auth.api.adminUpdateUser` and only calls `auth.api.setUserPassword` when a non-empty password is sent; a blank password leaves the current one unchanged. Role and ban state cannot be changed here. Both calls need the admin's session, so pass `fromNodeHeaders(req.headers)`.
+- Deleting a user: `DELETE /api/users/:id` (admin only) is a soft delete. It sets `deletedAt`, moves the email to `deletedEmail` and replaces `email` with `deleted+<id>@deleted.invalid` (so the address can be reused), bans the user and deletes their sessions; the row stays. Admin accounts cannot be deleted (403, enforced on the server; the UI hides the button). Unknown or already deleted ids return 404. Every query that reads users must filter `deletedAt: null`. The client confirms in `DeleteUserDialog.tsx`.
 - Password minimum is 8 everywhere (`minPasswordLength` in `server/src/auth.ts`, the `core` schemas). Keep them in sync.
 - The client form is `client/src/components/UserForm.tsx` (create when no `user` prop, edit when given one), shown in `UserDialog.tsx`. It uses react-hook-form + the `core` schemas (`zodResolver`), the same pattern as `LoginPage.tsx`. Use react-hook-form + Zod for every client form.
 - A dev agent account `agent@example.com` exists in the local database (password is not recorded here).
+
+### Inbound email (simulated)
+
+- There is no SendGrid integration yet. `POST /api/inbound/email` (`server/src/routes/inbound.ts`) simulates an email arriving at the support address. It is only mounted when `INBOUND_SECRET` (min 32 chars) is set, and every call needs the `x-inbound-secret` header (401 otherwise).
+- The body is validated with `inboundEmailSchema` from `core` (`from`, required `fromName`, `subject`, `body`, optional `messageId`, `inReplyTo`). 201 = ticket created, 200 = duplicate `messageId` (existing ticket returned), 400 = invalid body.
+- Ticket creation lives in `createTicketFromEmail` (`server/src/services/tickets.ts`): a new ticket is `open` with no category (category is optional and unset until classified), with the email as its first inbound `Message`. A real SendGrid webhook should map its payload onto `InboundEmail` and call the same function.
+- Not built yet: reply threading, reopening resolved tickets, the closed-ticket template reply, auto-reply/bounce filtering, outbound email.
 
 ### Client data fetching
 

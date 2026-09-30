@@ -17,6 +17,12 @@ export function NavBar() {
         <Link to="/" className="text-lg font-semibold">
           Ticket Manager
         </Link>
+        <Link
+          to="/tickets"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Tickets
+        </Link>
         {data?.user?.role === 'admin' && (
           <Link
             to="/users"

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import { UsersPage } from './UsersPage'
 
-vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), patch: vi.fn() } }))
+vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), patch: vi.fn(), delete: vi.fn() } }))
 // The nav bar needs the router and the auth session; it is not what these tests cover.
 vi.mock('../components/NavBar', () => ({ NavBar: () => null }))
 
@@ -57,6 +57,8 @@ function requestedParams(callIndex = -1) {
 describe('UsersPage', () => {
   beforeEach(() => {
     get.mockReset()
+    vi.mocked(api.patch).mockReset()
+    vi.mocked(api.delete).mockReset()
   })
 
   it('shows skeleton rows while loading', () => {
@@ -251,6 +253,94 @@ describe('UsersPage', () => {
         password: 'brandnewpass',
       })
       await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(1))
+    })
+  })
+
+  describe('delete user dialog', () => {
+    it('offers delete on agent rows but never on the admin row', async () => {
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Alice Admin')
+
+      expect(screen.getByRole('button', { name: 'Delete Bob Agent' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Delete Alice Admin' })).not.toBeInTheDocument()
+    })
+
+    it('asks for confirmation before deleting anything', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete user' })
+      expect(dialog).toHaveTextContent('Bob Agent')
+      expect(dialog).toHaveTextContent('bob@example.com')
+      expect(api.delete).not.toHaveBeenCalled()
+    })
+
+    it('does not delete when cancelled, on Escape, or on an outside click', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+      await user.click(await screen.findByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+      await screen.findByRole('dialog', { name: 'Delete user' })
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+      await screen.findByRole('dialog', { name: 'Delete user' })
+      await user.pointer({ keys: '[MouseLeft]', target: document.body })
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      expect(api.delete).not.toHaveBeenCalled()
+    })
+
+    it('deletes on confirm, closes the dialog and reloads the list', async () => {
+      const user = userEvent.setup()
+      vi.mocked(api.delete).mockResolvedValue({ data: undefined })
+      get.mockResolvedValue(respond([admin, agent]))
+      renderPage()
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Delete user' })
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(api.delete).toHaveBeenCalledWith('/users/2')
+      await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(1))
+    })
+
+    it('steps back a page when the last user on it is deleted', async () => {
+      const user = userEvent.setup()
+      vi.mocked(api.delete).mockResolvedValue({ data: undefined })
+      let deleted = false
+      get.mockImplementation((url) => {
+        const page = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+        if (page === 1) return Promise.resolve(respond([admin], deleted ? 1 : 21, 1))
+        return Promise.resolve(respond(deleted ? [] : [agent], deleted ? 1 : 21, 2))
+      })
+      renderPage()
+      await screen.findByText('Alice Admin')
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+      await screen.findByText('Bob Agent')
+
+      await user.click(screen.getByRole('button', { name: 'Delete Bob Agent' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Delete user' })
+      deleted = true
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      expect(await screen.findByText('1 user · Page 1 of 1')).toBeInTheDocument()
+      expect(requestedParams().get('page')).toBe('1')
     })
   })
 
