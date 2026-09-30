@@ -78,3 +78,18 @@ export const createReplySchema = z.object({
 })
 
 export type CreateReplyInput = z.infer<typeof createReplySchema>
+
+// A draft reply to be rewritten by AI. Same rules as a reply.
+export const polishReplySchema = createReplySchema
+
+export type PolishReplyInput = z.infer<typeof polishReplySchema>
+
+// The AI-polished text, put back in the reply box for the agent to review.
+export const polishedReplySchema = z.object({ body: z.string() })
+
+export type PolishedReply = z.infer<typeof polishedReplySchema>
+
+// The AI summary of a ticket and its conversation. Generated on demand, never stored.
+export const ticketSummarySchema = z.object({ summary: z.string() })
+
+export type TicketSummary = z.infer<typeof ticketSummarySchema>

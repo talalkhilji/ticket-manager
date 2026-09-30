@@ -6,6 +6,7 @@ import { ArrowLeftIcon } from 'lucide-react'
 import { api } from '@/lib/api'
 import { NavBar } from '../components/NavBar'
 import { ReplyForm } from '../components/ReplyForm'
+import { SummarizeButton } from '../components/SummarizeButton'
 import { authClient } from '../lib/auth-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -270,6 +271,8 @@ export function TicketDetailPage() {
                 </li>
               ))}
             </ol>
+
+            <SummarizeButton ticketId={data.id} />
 
             {data.status === 'closed' ? (
               <p className="mt-6 text-sm text-muted-foreground">

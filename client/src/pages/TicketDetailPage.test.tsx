@@ -147,6 +147,48 @@ describe('TicketDetailPage', () => {
       expect(box).toHaveValue('Hello')
     })
 
+    it('disables Polish while the reply box is empty', async () => {
+      get.mockResolvedValue({ data: ticket })
+      renderPage()
+
+      const polish = await screen.findByRole('button', { name: 'Polish' })
+      expect(polish).toBeDisabled()
+      await userEvent.type(screen.getByLabelText('Reply'), 'hi')
+      expect(polish).toBeEnabled()
+    })
+
+    it('polishes the draft into the reply box without sending it', async () => {
+      get.mockResolvedValue({ data: ticket })
+      post.mockResolvedValue({ data: { body: 'Thank you for reaching out. We are looking into it.' } })
+      renderPage()
+
+      const box = await screen.findByLabelText('Reply')
+      await userEvent.type(box, 'looking into it')
+      await userEvent.click(screen.getByRole('button', { name: 'Polish' }))
+
+      await waitFor(() => expect(box).toHaveValue('Thank you for reaching out. We are looking into it.'))
+      expect(post).toHaveBeenCalledTimes(1)
+      expect(post).toHaveBeenCalledWith('/tickets/7/polish', { body: 'looking into it' })
+    })
+
+    it('shows the polish error and keeps the draft', async () => {
+      get.mockResolvedValue({ data: ticket })
+      post.mockRejectedValue(
+        Object.assign(new Error('x'), {
+          isAxiosError: true,
+          response: { status: 502, data: { error: 'Could not polish the reply' } },
+        }),
+      )
+      renderPage()
+
+      const box = await screen.findByLabelText('Reply')
+      await userEvent.type(box, 'Hello')
+      await userEvent.click(screen.getByRole('button', { name: 'Polish' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not polish the reply')
+      expect(box).toHaveValue('Hello')
+    })
+
     it('shows outbound replies in the thread', async () => {
       get.mockResolvedValue({
         data: {

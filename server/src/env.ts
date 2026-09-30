@@ -11,6 +11,8 @@ const envSchema = z
     CLIENT_URL: z.url().default('http://localhost:5173'),
     // Shared secret for the simulated inbound email API. The endpoint is disabled when unset.
     INBOUND_SECRET: z.string().min(32).optional(),
+    // OpenAI key for the reply "Polish" button. Polishing is disabled (503) when unset.
+    OPENAI_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return

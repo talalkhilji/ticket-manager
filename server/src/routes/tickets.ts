@@ -4,6 +4,7 @@ import {
   assignTicketSchema,
   createReplySchema,
   NO_CATEGORY,
+  polishReplySchema,
   UNASSIGNED,
   ticketCategories,
   ticketSortFields,
@@ -16,6 +17,8 @@ import type { Prisma } from '../generated/prisma/client.js'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/require-auth.js'
 import { sanitizeText } from '../sanitize.js'
+import { isPolishConfigured, polishReply } from '../services/polish.js'
+import { isSummarizeConfigured, summarizeTicket } from '../services/summarize.js'
 
 export const ticketsRouter = Router()
 
@@ -331,6 +334,159 @@ ticketsRouter.patch('/:id', requireAuth, async (req, res) => {
     select: { id: true, status: true, category: true },
   })
   res.json(ticket)
+})
+
+/**
+ * @openapi
+ * /api/tickets/{id}/polish:
+ *   post:
+ *     summary: Improve an agent's draft reply with AI (nothing is stored or sent)
+ *     description: >
+ *       Same access rules as replying: agents on their own or an unassigned ticket, admins on any.
+ *       A closed ticket cannot be polished. Returns 503 when no OpenAI key is configured.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [body]
+ *             properties:
+ *               body: { type: string, maxLength: 20000 }
+ *     responses:
+ *       200:
+ *         description: The polished text as `{ body }`
+ *       400:
+ *         description: Invalid id or body
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Another agent holds the ticket
+ *       404:
+ *         description: Ticket not found
+ *       409:
+ *         description: The ticket is closed
+ *       502:
+ *         description: The AI call failed
+ *       503:
+ *         description: Polishing is not configured
+ */
+ticketsRouter.post('/:id/polish', requireAuth, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  if (!id.success) {
+    res.status(400).json({ error: 'Invalid ticket id' })
+    return
+  }
+  const body = polishReplySchema.safeParse(req.body)
+  if (!body.success) {
+    res.status(400).json({ error: 'Invalid body', issues: body.error.issues })
+    return
+  }
+  if (!isPolishConfigured()) {
+    res.status(503).json({ error: 'AI polish is not configured' })
+    return
+  }
+  const userId = res.locals.userId as string
+  const isAdmin = res.locals.role === 'admin'
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: id.data },
+    select: {
+      subject: true,
+      status: true,
+      assigneeId: true,
+      messages: {
+        where: { direction: 'inbound' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { body: true },
+      },
+    },
+  })
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+  if (ticket.status === 'closed') {
+    res.status(409).json({ error: 'This ticket is closed' })
+    return
+  }
+  if (!isAdmin && ticket.assigneeId !== null && ticket.assigneeId !== userId) {
+    res.status(403).json({ error: 'Another agent holds this ticket' })
+    return
+  }
+
+  try {
+    const polished = await polishReply({
+      subject: ticket.subject,
+      // Trimmed: the model only needs the gist for tone.
+      customerMessage: ticket.messages[0]?.body.slice(0, 4000) ?? null,
+      draft: body.data.body,
+    })
+    if (!polished) throw new Error('Empty model response')
+    res.json({ body: polished })
+  } catch (err) {
+    console.error('Polish failed:', err instanceof Error ? err.message : 'unknown error')
+    res.status(502).json({ error: 'Could not polish the reply' })
+  }
+})
+
+/**
+ * @openapi
+ * /api/tickets/{id}/summarize:
+ *   post:
+ *     summary: Summarize a ticket and its conversation with AI (nothing is stored or sent)
+ *     description: >
+ *       Read-only, so any signed-in user can summarize any ticket, including closed ones.
+ *       The summary is regenerated on every call. Returns 503 when no OpenAI key is configured.
+ *     responses:
+ *       200:
+ *         description: The summary as `{ summary }`
+ *       400:
+ *         description: Invalid id
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Ticket not found
+ *       502:
+ *         description: The AI call failed
+ *       503:
+ *         description: Summarizing is not configured
+ */
+ticketsRouter.post('/:id/summarize', requireAuth, async (req, res) => {
+  const id = ticketIdSchema.safeParse(req.params.id)
+  if (!id.success) {
+    res.status(400).json({ error: 'Invalid ticket id' })
+    return
+  }
+  if (!isSummarizeConfigured()) {
+    res.status(503).json({ error: 'AI summaries are not configured' })
+    return
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: id.data },
+    select: {
+      subject: true,
+      messages: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { senderType: true, body: true },
+      },
+    },
+  })
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' })
+    return
+  }
+
+  try {
+    const summary = await summarizeTicket({ subject: ticket.subject, messages: ticket.messages })
+    if (!summary) throw new Error('Empty model response')
+    res.json({ summary })
+  } catch (err) {
+    console.error('Summarize failed:', err instanceof Error ? err.message : 'unknown error')
+    res.status(502).json({ error: 'Could not summarize the ticket' })
+  }
 })
 
 /**

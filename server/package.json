@@ -9,12 +9,15 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "seed": "tsx prisma/seed.ts",
-    "seed:tickets": "tsx prisma/seed-tickets.ts"
+    "seed:tickets": "tsx prisma/seed-tickets.ts",
+    "seed:thread": "tsx prisma/seed-thread.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.121",
     "@better-auth/prisma-adapter": "^1.7.5",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "ai": "^6.0.297",
     "better-auth": "^1.7.5",
     "core": "*",
     "dompurify": "^3.4.16",
