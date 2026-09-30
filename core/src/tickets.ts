@@ -33,3 +33,14 @@ export const ticketSortFields = [
 ] as const
 
 export type TicketSortField = (typeof ticketSortFields)[number]
+
+export const ticketStatuses = ['open', 'resolved', 'closed'] as const
+export const ticketCategories = ['general', 'technical', 'refund', 'other'] as const
+
+export type TicketStatus = (typeof ticketStatuses)[number]
+export type TicketCategory = (typeof ticketCategories)[number]
+
+// Special values of the list filters: tickets with no category, tickets with no assignee, my tickets.
+export const NO_CATEGORY = 'none'
+export const UNASSIGNED = 'unassigned'
+export const ASSIGNED_TO_ME = 'me'

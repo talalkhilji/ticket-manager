@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import { TicketsPage } from './TicketsPage'
@@ -40,11 +41,13 @@ function respond(tickets: unknown[], total = tickets.length, page = 1) {
   return { data: { tickets, total, page, pageSize: 20 } }
 }
 
-function renderPage() {
+function renderPage(url = '/tickets') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <TicketsPage />
+      <MemoryRouter initialEntries={[url]}>
+        <TicketsPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -97,7 +100,7 @@ describe('TicketsPage', () => {
     await screen.findByText('Refund for my course')
 
     expect(get.mock.calls[0][0]).toBe('/tickets')
-    expect(get.mock.calls[0][1]).toMatchObject({ params: { page: 1, pageSize: 20 } })
+    expect(get.mock.calls[0][1]).toMatchObject({ params: { page: 1, pageSize: 10 } })
     expect(screen.getByText('1 ticket · Page 1 of 1')).toBeInTheDocument()
   })
 
@@ -171,6 +174,175 @@ describe('TicketsPage', () => {
       await user.click(screen.getByRole('button', { name: 'Status' }))
 
       await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, sortBy: 'status' }))
+    })
+  })
+
+  describe('filtering', () => {
+    const lastParams = () => paramsOf(get.mock.calls.at(-1)![1])
+
+    it('sends no filters by default and offers every option', async () => {
+      get.mockResolvedValue(respond([refund]))
+      renderPage()
+      await screen.findByText('Refund for my course')
+
+      const params = paramsOf(get.mock.calls[0][1])
+      expect(params.status).toBeUndefined()
+      expect(params.category).toBeUndefined()
+      expect(params.assignee).toBeUndefined()
+      expect(params.search).toBeUndefined()
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+      expect(within(screen.getByRole('combobox', { name: 'Status' })).getAllByRole('option')).toHaveLength(4)
+      expect(within(screen.getByRole('combobox', { name: 'Category' })).getAllByRole('option')).toHaveLength(6)
+      expect(within(screen.getByRole('combobox', { name: 'Assignee' })).getAllByRole('option')).toHaveLength(3)
+    })
+
+    it('sends the chosen status, category and assignee to the server', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([refund]))
+      renderPage()
+      await screen.findByText('Refund for my course')
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Resolved')
+      await waitFor(() => expect(lastParams()).toMatchObject({ status: 'resolved' }))
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Uncategorised')
+      await waitFor(() => expect(lastParams()).toMatchObject({ status: 'resolved', category: 'none' }))
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Assignee' }), 'Assigned to me')
+      await waitFor(() =>
+        expect(lastParams()).toMatchObject({ status: 'resolved', category: 'none', assignee: 'me' }),
+      )
+    })
+
+    it('searches after the debounce, ignoring surrounding spaces', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([refund]))
+      renderPage()
+      await screen.findByText('Refund for my course')
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search tickets' }), ' sara ')
+
+      await waitFor(() => expect(lastParams()).toMatchObject({ search: 'sara' }))
+    })
+
+    it('starts from the filters in the URL and clears them again', async () => {
+      const user = userEvent.setup()
+      get.mockResolvedValue(respond([refund]))
+      renderPage('/tickets?status=closed&category=refund&assignee=unassigned&search=visa&sortBy=subject&sortOrder=asc')
+      await screen.findByText('Refund for my course')
+
+      expect(get.mock.calls[0][1]).toMatchObject({
+        params: {
+          status: 'closed',
+          category: 'refund',
+          assignee: 'unassigned',
+          search: 'visa',
+          sortBy: 'subject',
+          sortOrder: 'asc',
+        },
+      })
+      expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('closed')
+      expect(screen.getByRole('searchbox', { name: 'Search tickets' })).toHaveValue('visa')
+
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+      await waitFor(() => {
+        const params = lastParams()
+        expect(params.status).toBeUndefined()
+        expect(params.search).toBeUndefined()
+      })
+      expect(screen.getByRole('searchbox', { name: 'Search tickets' })).toHaveValue('')
+      // Sorting is not a filter, so it stays.
+      expect(lastParams()).toMatchObject({ sortBy: 'subject' })
+    })
+
+    it('ignores invalid values in the URL', async () => {
+      get.mockResolvedValue(respond([refund]))
+      renderPage('/tickets?status=bogus&sortBy=nope&page=-3')
+      await screen.findByText('Refund for my course')
+
+      const params = paramsOf(get.mock.calls[0][1])
+      expect(params.status).toBeUndefined()
+      expect(params).toMatchObject({ sortBy: 'createdAt', page: 1 })
+    })
+
+    it('goes back to page 1 when a filter changes', async () => {
+      const user = userEvent.setup()
+      get.mockImplementation((_url, config) => {
+        const page = Number(paramsOf(config).page)
+        return Promise.resolve(respond([{ ...refund, subject: `Ticket on page ${page}` }], 45, page))
+      })
+      renderPage('/tickets?page=3')
+      await screen.findByText('Ticket on page 3')
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'Open')
+
+      await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, status: 'open' }))
+    })
+
+    it('says when no ticket matches the filters', async () => {
+      get.mockResolvedValue(respond([]))
+      renderPage('/tickets?status=closed')
+
+      expect(await screen.findByText('No tickets match these filters.')).toBeInTheDocument()
+    })
+  })
+
+  describe('pagination', () => {
+    const lastParams = () => paramsOf(get.mock.calls.at(-1)![1])
+    const manyPages = (_url: string, config?: { params?: unknown }) => {
+      const page = Number(paramsOf(config).page)
+      return Promise.resolve(
+        respond([{ ...refund, subject: `Ticket on page ${page}` }], 100, page),
+      )
+    }
+
+    it('jumps to a page number and keeps the filters', async () => {
+      const user = userEvent.setup()
+      get.mockImplementation(manyPages)
+      renderPage('/tickets?status=open')
+      await screen.findByText('Ticket on page 1')
+
+      await user.click(screen.getByRole('button', { name: 'Page 5' }))
+
+      expect(await screen.findByText('Ticket on page 5')).toBeInTheDocument()
+      expect(lastParams()).toMatchObject({ page: 5, status: 'open' })
+    })
+
+    it('changes the page size and goes back to page 1', async () => {
+      const user = userEvent.setup()
+      get.mockImplementation(manyPages)
+      renderPage('/tickets?page=3')
+      await screen.findByText('Ticket on page 3')
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Rows per page' }), '50')
+
+      await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, pageSize: 50 }))
+    })
+
+    it('reads the page size from the URL and ignores unsupported sizes', async () => {
+      get.mockResolvedValue(respond([refund]))
+      renderPage('/tickets?pageSize=50')
+      await screen.findByText('Refund for my course')
+      expect(paramsOf(get.mock.calls[0][1])).toMatchObject({ pageSize: 50 })
+
+      get.mockClear()
+      renderPage('/tickets?pageSize=7')
+      await waitFor(() => expect(get).toHaveBeenCalled())
+      expect(paramsOf(get.mock.calls[0][1])).toMatchObject({ pageSize: 10 })
+    })
+
+    it('steps back to the last page when the URL points past the end', async () => {
+      get.mockImplementation((_url, config) => {
+        const page = Number(paramsOf(config).page)
+        return Promise.resolve(
+          page > 3
+            ? respond([], 45, page)
+            : respond([{ ...refund, subject: `Ticket on page ${page}` }], 45, page),
+        )
+      })
+      renderPage('/tickets?page=9')
+
+      expect(await screen.findByText('Ticket on page 3')).toBeInTheDocument()
+      expect(lastParams()).toMatchObject({ page: 3 })
     })
   })
 
