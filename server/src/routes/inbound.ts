@@ -2,7 +2,8 @@ import { timingSafeEqual } from 'node:crypto'
 import { Router, type NextFunction, type Request, type Response } from 'express'
 import { inboundEmailSchema } from 'core'
 import { env } from '../env.js'
-import { classifyTicketInBackground, createTicketFromEmail } from '../services/tickets.js'
+import { enqueueClassifyTicket } from '../queue.js'
+import { createTicketFromEmail } from '../services/tickets.js'
 
 export const inboundRouter = Router()
 
@@ -67,6 +68,6 @@ inboundRouter.post('/email', requireInboundSecret, async (req, res) => {
 
   const { ticket, created } = await createTicketFromEmail(parsed.data)
   res.status(created ? 201 : 200).json({ ticket })
-  // After the response, so the webhook never waits for the AI. Duplicates are not classified again.
-  if (created) void classifyTicketInBackground(ticket.id)
+  // After the response, so the webhook never waits. A queue worker classifies it; duplicates are not queued again.
+  if (created) void enqueueClassifyTicket(ticket.id)
 })

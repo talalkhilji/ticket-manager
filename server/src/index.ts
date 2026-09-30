@@ -4,6 +4,7 @@ import { toNodeHandler } from 'better-auth/node'
 import helmet from 'helmet'
 import { auth } from './auth.js'
 import { env } from './env.js'
+import { startQueue, stopQueue } from './queue.js'
 import { inboundRouter } from './routes/inbound.js'
 import { ticketsRouter } from './routes/tickets.js'
 import { usersRouter } from './routes/users.js'
@@ -57,6 +58,22 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-app.listen(port, () => {
+// A queue that fails to start must not take the API down: tickets just stay uncategorised.
+await startQueue().catch((err: Error) => console.error('Could not start the job queue:', err.message))
+
+const server = app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
+
+// Let the running job finish and close the queue's connections before exiting (also on tsx watch restarts).
+let shuttingDown = false
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    server.close()
+    stopQueue()
+      .catch((err: Error) => console.error('Could not stop the job queue:', err.message))
+      .finally(() => process.exit(0))
+  })
+}

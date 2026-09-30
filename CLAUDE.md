@@ -16,7 +16,7 @@ npm workspaces monorepo:
 - `client/` - React 19 + Vite + TypeScript (linted with oxlint), Tailwind v4, shadcn/ui, React Router, react-hook-form + Zod
 - `server/` - Express 5 + TypeScript (run with tsx, built with tsc), PostgreSQL via Prisma, better-auth
 
-Planned (see tech-stack.md): pg-boss, SendGrid, Anthropic SDK, Vitest. Playwright is set up (see Testing below).
+pg-boss (pinned to 10.4.2 because 11+ needs Node 22; the queue and worker live in `server/src/queue.ts`) is in use. Planned (see tech-stack.md): SendGrid, Anthropic SDK, Vitest. Playwright is set up (see Testing below).
 
 ## Commands
 
@@ -93,7 +93,7 @@ Component tests use Vitest, jsdom and React Testing Library. They are separate f
 - There is no SendGrid integration yet. `POST /api/inbound/email` (`server/src/routes/inbound.ts`) simulates an email arriving at the support address. It is only mounted when `INBOUND_SECRET` (min 32 chars) is set, and every call needs the `x-inbound-secret` header (401 otherwise).
 - The body is validated with `inboundEmailSchema` from `core` (`from`, required `fromName`, `subject`, `body`, optional `messageId`, `inReplyTo`). 201 = ticket created, 200 = duplicate `messageId` (existing ticket returned), 400 = invalid body.
 - Ticket creation lives in `createTicketFromEmail` (`server/src/services/tickets.ts`): a new ticket is `open` with no category (category is optional and unset until classified), with the email as its first inbound `Message`. A real SendGrid webhook should map its payload onto `InboundEmail` and call the same function.
-- Auto-classification: after a 201 (not for duplicates), the route calls `void classifyTicketInBackground(ticket.id)` (`server/src/services/tickets.ts`) once the response is sent, so the webhook never waits for the AI. It classifies with `gpt-5-nano` (`server/src/services/classify.ts`, structured output validated with Zod, same `OPENAI_API_KEY`) and only writes while the category is still null, so an agent's manual choice is never overwritten. It never throws: with no key, or on any AI failure, the ticket stays uncategorised. It runs in-process (no queue), so a restart mid-call just leaves that ticket uncategorised; pg-boss is planned for later. Any new way of creating tickets should call it too.
+- Auto-classification: after a 201 (not for duplicates), the route calls `void enqueueClassifyTicket(ticket.id)` (`server/src/queue.ts`) once the response is sent, which adds a job to the pg-boss queue `classify-ticket` (policy `short` plus `singletonKey` = ticket id, so a ticket is queued once). The worker runs inside the server process, started from `index.ts` (`startQueue`, stopped on SIGINT/SIGTERM), and calls `classifyTicketJob` (`server/src/services/tickets.ts`), which classifies with `gpt-5-nano` (`server/src/services/classify.ts`, structured output validated with Zod, same `OPENAI_API_KEY`) and only writes while the category is still null, so an agent's manual choice is never overwritten. Jobs retry 3 times with backoff; after that the ticket stays uncategorised. With no key nothing is queued or worked. If the queue cannot start, the API still runs. pg-boss keeps its tables in its own `pgboss` schema in the same database (created on start, no Prisma migration). Any new way of creating tickets should call `enqueueClassifyTicket` too.
 - Not built yet: reply threading, reopening resolved tickets, the closed-ticket template reply, auto-reply/bounce filtering, outbound email.
 
 ### Client data fetching
