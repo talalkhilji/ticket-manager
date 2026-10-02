@@ -14,7 +14,7 @@ import {
   UNASSIGNED,
   ticketCategories,
   ticketSortFields,
-  ticketStatuses,
+  settableTicketStatuses,
   type TicketSortField,
 } from 'core'
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from 'lucide-react'
@@ -136,7 +136,7 @@ export function TicketsPage() {
     PAGE_SIZES.find((size) => size === Number(params.get('pageSize'))) ?? DEFAULT_PAGE_SIZE
   const sortBy = oneOf(params.get('sortBy'), ticketSortFields) ?? DEFAULT_SORTING[0].id
   const sortOrder = oneOf(params.get('sortOrder'), ['asc', 'desc'] as const) ?? 'desc'
-  const status = oneOf(params.get('status'), ticketStatuses)
+  const status = oneOf(params.get('status'), settableTicketStatuses)
   const category = oneOf(params.get('category'), [...ticketCategories, NO_CATEGORY])
   const assignee = oneOf(params.get('assignee'), [ASSIGNED_TO_ME, UNASSIGNED])
   const search = params.get('search')?.trim() || undefined
@@ -223,7 +223,7 @@ export function TicketsPage() {
             onChange={(e) => update({ status: e.target.value })}
           >
             <option value="">All statuses</option>
-            {ticketStatuses.map((s) => (
+            {settableTicketStatuses.map((s) => (
               <option key={s} value={s} className="capitalize">
                 {s[0].toUpperCase() + s.slice(1)}
               </option>

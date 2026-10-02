@@ -1,14 +1,15 @@
 import { Router } from 'express'
 import {
+  aiWorkingStatuses,
   ASSIGNED_TO_ME,
   assignTicketSchema,
   createReplySchema,
   NO_CATEGORY,
   polishReplySchema,
+  settableTicketStatuses,
   UNASSIGNED,
   ticketCategories,
   ticketSortFields,
-  ticketStatuses,
   updateTicketSchema,
   type TicketSortField,
 } from 'core'
@@ -24,12 +25,16 @@ export const ticketsRouter = Router()
 
 const ticketIdSchema = z.coerce.number().int().min(1).max(2_147_483_647)
 
+// While the AI is working on a ticket (new, processing) agents cannot reply or change its status.
+const aiWorkingMessage = 'The AI is still working on this ticket. Try again in a moment.'
+const isAiWorking = (status: string) => (aiWorkingStatuses as readonly string[]).includes(status)
+
 const listQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   sortBy: z.enum(ticketSortFields).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  status: z.enum(ticketStatuses).optional(),
+  status: z.enum(settableTicketStatuses).optional(),
   category: z.enum([...ticketCategories, NO_CATEGORY]).optional(),
   assignee: z.enum([ASSIGNED_TO_ME, UNASSIGNED]).optional(),
   search: z.string().trim().max(100).optional(),
@@ -82,7 +87,7 @@ function orderByFor(sortBy: TicketSortField, dir: 'asc' | 'desc'): Prisma.Ticket
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: A page of tickets
+ *         description: A page of tickets (tickets the AI is still working on are not listed)
  *       400:
  *         description: Invalid query
  *       401:
@@ -97,7 +102,8 @@ ticketsRouter.get('/', requireAuth, async (req, res) => {
   const { page, pageSize, sortBy, sortOrder, status, category, assignee, search } = parsed.data
 
   const where: Prisma.TicketWhereInput = {
-    ...(status && { status }),
+    // Tickets the AI is still working on (new, processing) are not listed.
+    status: status ?? { notIn: [...aiWorkingStatuses] },
     ...(category && { category: category === NO_CATEGORY ? null : category }),
     ...(assignee && {
       assigneeId: assignee === ASSIGNED_TO_ME ? (res.locals.userId as string) : null,
@@ -319,12 +325,13 @@ ticketsRouter.patch('/:id', requireAuth, async (req, res) => {
 
   // A status change never touches a closed ticket; the check is part of the write so it cannot race.
   const { count } = await prisma.ticket.updateMany({
-    where: { id: id.data, ...(status && { status: { not: 'closed' } }) },
+    where: { id: id.data, ...(status && { status: { notIn: ['closed', ...aiWorkingStatuses] } }) },
     data: { ...(status && { status }), ...(category && { category }) },
   })
   if (count === 0) {
-    const exists = await prisma.ticket.findUnique({ where: { id: id.data }, select: { id: true } })
+    const exists = await prisma.ticket.findUnique({ where: { id: id.data }, select: { status: true } })
     if (!exists) res.status(404).json({ error: 'Ticket not found' })
+    else if (exists.status !== 'closed') res.status(409).json({ error: aiWorkingMessage })
     else res.status(409).json({ error: 'A closed ticket is final and its status cannot change' })
     return
   }
@@ -409,6 +416,10 @@ ticketsRouter.post('/:id/polish', requireAuth, async (req, res) => {
   }
   if (ticket.status === 'closed') {
     res.status(409).json({ error: 'This ticket is closed' })
+    return
+  }
+  if (isAiWorking(ticket.status)) {
+    res.status(409).json({ error: aiWorkingMessage })
     return
   }
   if (!isAdmin && ticket.assigneeId !== null && ticket.assigneeId !== userId) {
@@ -556,6 +567,7 @@ ticketsRouter.post('/:id/messages', requireAuth, async (req, res) => {
     })
     if (!ticket) return { error: 404 as const }
     if (ticket.status === 'closed') return { error: 409 as const }
+    if (isAiWorking(ticket.status)) return { error: 'busy' as const }
     if (!isAdmin) {
       if (ticket.assigneeId !== null && ticket.assigneeId !== userId) return { error: 403 as const }
       if (ticket.assigneeId === null) {
@@ -580,6 +592,10 @@ ticketsRouter.post('/:id/messages', requireAuth, async (req, res) => {
     return { message }
   })
 
+  if (result.error === 'busy') {
+    res.status(409).json({ error: aiWorkingMessage })
+    return
+  }
   if (result.error) {
     const errors = {
       404: 'Ticket not found',

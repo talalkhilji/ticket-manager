@@ -14,7 +14,9 @@ const systemPrompt = `You summarise a customer support ticket and its conversati
 
 export const isSummarizeConfigured = () => !!env.OPENAI_API_KEY
 
-type SummaryMessage = { senderType: 'agent' | 'customer'; body: string }
+type SummaryMessage = { senderType: 'agent' | 'customer' | 'ai'; body: string }
+
+const senderLabels = { agent: 'Agent', customer: 'Customer', ai: 'AI assistant' } as const
 
 // Summarises a whole ticket thread. Nothing is stored and nothing is sent.
 export async function summarizeTicket(input: {
@@ -25,7 +27,7 @@ export async function summarizeTicket(input: {
   const lines: string[] = []
   let total = 0
   for (const m of [...input.messages].reverse()) {
-    const line = `${m.senderType === 'agent' ? 'Agent' : 'Customer'}:\n${m.body.slice(0, maxMessageChars)}`
+    const line = `${senderLabels[m.senderType]}:\n${m.body.slice(0, maxMessageChars)}`
     if (total + line.length > maxTotalChars && lines.length > 0) break
     lines.push(line)
     total += line.length

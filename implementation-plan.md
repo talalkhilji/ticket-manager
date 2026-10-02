@@ -96,7 +96,7 @@ Each phase ends with something that works and can be checked. Tasks are small en
 - [ ] AI classification into the four categories (structured output with Zod validation)
 - [ ] Show and allow agents to correct the category in the UI
 - [ ] AI summary shown at the top of the ticket detail page
-- [ ] AI-drafted reply based on the ticket conversation (no knowledge base yet)
+- [ ] AI-drafted reply based on the ticket conversation (from the ticket conversation and `server/knowledge-base.md`)
 - [ ] "Use suggested reply" button that fills the reply box for the agent to edit; the AI never sends
 - [ ] Guardrail: the reply prompt must not invent policies, prices or refund promises, and should leave a placeholder for facts it doesn't have
 - [ ] Tests for each AI step using mocked model responses
@@ -130,4 +130,4 @@ Each phase ends with something that works and can be checked. Tasks are small en
 
 These affect the plan and are not yet settled in `project-scope.md`:
 
-1. Knowledge base is deferred. Drafts stay generic until it is assessed.
+1. The knowledge base is a single file (`server/knowledge-base.md`) used for auto-resolve; drafts for agents may use it too later.

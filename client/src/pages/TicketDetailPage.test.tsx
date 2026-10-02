@@ -215,6 +215,35 @@ describe('TicketDetailPage', () => {
       expect(await screen.findByText(/closed and cannot be replied to/i)).toBeInTheDocument()
       expect(screen.queryByLabelText('Reply')).not.toBeInTheDocument()
     })
+
+    it('shows an AI reply with its own badge', async () => {
+      get.mockResolvedValue({
+        data: {
+          ...ticket,
+          status: 'resolved',
+          messages: [
+            ...ticket.messages,
+            { id: 2, direction: 'outbound', senderType: 'ai', fromEmail: 'support@example.com', body: 'Use Forgot Password.', createdAt: '2026-09-30T06:00:00.000Z' },
+          ],
+        },
+      })
+      renderPage()
+
+      expect(await screen.findByText('Use Forgot Password.')).toBeInTheDocument()
+      expect(screen.getByText('AI')).toBeInTheDocument()
+      expect(screen.getByText('Customer')).toBeInTheDocument()
+    })
+
+    it.each(['new', 'processing'])('offers no reply form while the ticket is %s', async (status) => {
+      get.mockResolvedValue({ data: { ...ticket, status } })
+      renderPage()
+
+      expect(await screen.findByText(/AI is still working on this ticket/i)).toBeInTheDocument()
+      expect(screen.queryByLabelText('Reply')).not.toBeInTheDocument()
+      const select = screen.getByRole('combobox', { name: 'Status' })
+      expect(select).toBeDisabled()
+      expect(select).toHaveValue(status)
+    })
   })
 
   describe('assignment', () => {

@@ -2,6 +2,7 @@ import type { InboundEmail } from 'core'
 import { prisma } from '../db.js'
 import { sanitizeText } from '../sanitize.js'
 import { classifyTicket, isClassifyConfigured } from './classify.js'
+import { isAutoResolveEnabled } from './knowledge-base.js'
 
 /**
  * The body of the `classify-ticket` queue job: sets the category of a new ticket with AI.
@@ -24,7 +25,8 @@ export async function classifyTicketJob(ticketId: number): Promise<void> {
 }
 
 /**
- * Creates a ticket (status open, category general) with the email as its first inbound message.
+ * Creates a ticket (status `new` when auto-resolve is on, otherwise `open`; no category yet) with the
+ * email as its first inbound message.
  * A repeated `messageId` returns the existing ticket instead of creating a second one.
  */
 export async function createTicketFromEmail(rawEmail: InboundEmail) {
@@ -47,6 +49,8 @@ export async function createTicketFromEmail(rawEmail: InboundEmail) {
   try {
     const ticket = await prisma.ticket.create({
       data: {
+        // `new` waits for the AI to try the knowledge base; without auto-resolve it is open for agents at once.
+        status: isAutoResolveEnabled() ? 'new' : 'open',
         subject: email.subject,
         senderEmail: email.from,
         senderName: email.fromName,

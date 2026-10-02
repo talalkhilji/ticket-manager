@@ -86,6 +86,9 @@ model Verification {
 }
 
 enum TicketStatus {
+  // new: just arrived, waiting for the AI. processing: the AI is trying to resolve it. Both are hidden from the list.
+  new
+  processing
   open
   resolved
   closed
@@ -106,6 +109,7 @@ enum MessageDirection {
 enum MessageSenderType {
   agent
   customer
+  ai
 }
 
 model Ticket {

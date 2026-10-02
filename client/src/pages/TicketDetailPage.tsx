@@ -1,5 +1,12 @@
 import { Link, useParams } from 'react-router'
-import { ticketCategories, ticketStatuses, type MessageSenderType, type UpdateTicketInput } from 'core'
+import {
+  aiWorkingStatuses,
+  settableTicketStatuses,
+  ticketCategories,
+  type MessageSenderType,
+  type TicketStatus,
+  type UpdateTicketInput,
+} from 'core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { ArrowLeftIcon } from 'lucide-react'
@@ -26,7 +33,7 @@ type TicketDetail = {
   subject: string
   senderEmail: string
   senderName: string
-  status: 'open' | 'resolved' | 'closed'
+  status: TicketStatus
   category: 'general' | 'technical' | 'refund' | 'other' | null
   createdAt: string
   assignee: { id: string; name: string } | null
@@ -43,12 +50,19 @@ function errorMessage(err: Error) {
 
 const capitalise = (s: string) => s[0].toUpperCase() + s.slice(1)
 
+// new and processing: the AI is still trying to answer the ticket from the knowledge base.
+const isAiWorking = (status: TicketStatus) => (aiWorkingStatuses as readonly string[]).includes(status)
+
+const senderLabels: Record<MessageSenderType, string> = { agent: 'Agent', customer: 'Customer', ai: 'AI' }
+const senderBadgeVariant = { agent: 'default', customer: 'outline', ai: 'secondary' } as const
+
 // Agents and admins set open or resolved and pick the category; only admins can close, and closed is final.
 function StatusAndCategoryControls({ ticket }: { ticket: TicketDetail }) {
   const queryClient = useQueryClient()
   const { data: session } = authClient.useSession()
   const isAdmin = session?.user.role === 'admin'
   const closed = ticket.status === 'closed'
+  const working = isAiWorking(ticket.status)
 
   const update = useMutation({
     mutationFn: (changes: UpdateTicketInput) => api.patch(`/tickets/${ticket.id}`, changes),
@@ -65,12 +79,11 @@ function StatusAndCategoryControls({ ticket }: { ticket: TicketDetail }) {
         <select
           className={selectClass}
           value={ticket.status}
-          // A closed ticket cannot change; a non-admin cannot choose closed.
-          disabled={update.isPending || closed}
-          onChange={(e) => update.mutate({ status: e.target.value as TicketDetail['status'] })}
+          // A closed ticket cannot change, nor can one the AI is working on; a non-admin cannot choose closed.
+          disabled={update.isPending || closed || working}
+          onChange={(e) => update.mutate({ status: e.target.value as NonNullable<UpdateTicketInput['status']> })}
         >
-          {ticketStatuses
-            .filter((st) => isAdmin || st !== 'closed' || closed)
+          {(working ? [ticket.status] : settableTicketStatuses.filter((st) => isAdmin || st !== 'closed' || closed))
             .map((st) => (
               <option key={st} value={st}>
                 {capitalise(st)}
@@ -254,13 +267,11 @@ export function TicketDetailPage() {
               {data.messages.map((m) => (
                 <li
                   key={m.id}
-                  className={`rounded-lg border p-4 ${m.senderType === 'agent' ? 'bg-muted' : ''}`}
+                  className={`rounded-lg border p-4 ${m.senderType === 'customer' ? '' : 'bg-muted'}`}
                 >
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-2">
-                      <Badge variant={m.senderType === 'agent' ? 'default' : 'outline'}>
-                        {capitalise(m.senderType)}
-                      </Badge>
+                      <Badge variant={senderBadgeVariant[m.senderType]}>{senderLabels[m.senderType]}</Badge>
                       <span>
                         {m.direction === 'inbound' ? 'Received from' : 'Sent by'} {m.fromEmail}
                       </span>
@@ -277,6 +288,10 @@ export function TicketDetailPage() {
             {data.status === 'closed' ? (
               <p className="mt-6 text-sm text-muted-foreground">
                 This ticket is closed and cannot be replied to.
+              </p>
+            ) : isAiWorking(data.status) ? (
+              <p className="mt-6 text-sm text-muted-foreground">
+                The AI is still working on this ticket. Replying is available once it has finished.
               </p>
             ) : (
               <ReplyForm ticketId={data.id} />

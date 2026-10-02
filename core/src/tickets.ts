@@ -34,11 +34,17 @@ export const ticketSortFields = [
 
 export type TicketSortField = (typeof ticketSortFields)[number]
 
-export const ticketStatuses = ['open', 'resolved', 'closed'] as const
+// new: just arrived, waiting for the AI. processing: the AI is trying to resolve it. Both are hidden from
+// the ticket list and are only ever set by the server, never by an agent.
+export const ticketStatuses = ['new', 'processing', 'open', 'resolved', 'closed'] as const
+// The statuses an agent or admin can choose, filter by or see in the list.
+export const settableTicketStatuses = ['open', 'resolved', 'closed'] as const
+// Statuses where the AI is still working on the ticket.
+export const aiWorkingStatuses = ['new', 'processing'] as const
 export const ticketCategories = ['general', 'technical', 'refund', 'other'] as const
 
 // Who wrote a message on a ticket.
-export const messageSenderTypes = ['agent', 'customer'] as const
+export const messageSenderTypes = ['agent', 'customer', 'ai'] as const
 export type MessageSenderType = (typeof messageSenderTypes)[number]
 
 export type TicketStatus =(typeof ticketStatuses)[number]
@@ -59,7 +65,7 @@ export type AssignTicketInput = z.infer<typeof assignTicketSchema>
 // Status and/or category change from an agent or admin. Send only the fields that change.
 export const updateTicketSchema = z
   .object({
-    status: z.enum(ticketStatuses, 'Choose a valid status').optional(),
+    status: z.enum(settableTicketStatuses, 'Choose a valid status').optional(),
     category: z.enum(ticketCategories, 'Choose a valid category').optional(),
   })
   .refine((v) => v.status !== undefined || v.category !== undefined, {
